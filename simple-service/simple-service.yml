@@ -1,0 +1,55 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: simple-http-service
+  namespace: default
+  labels: &ServicesLabels
+    app: simple-http-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector: *ServicesLabels
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: simple-http-service
+  namespace: default
+  labels: &ServicesLabels
+    app: simple-http-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: *ServicesLabels
+  template:
+    metadata:
+      labels: *ServicesLabels
+    spec:
+      containers:
+        - name: simple-service
+          image: "liavyona09/simple-service:latest"
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 180
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 1
+            periodSeconds: 30
+            timeoutSeconds: 30
+            failureThreshold: 180
