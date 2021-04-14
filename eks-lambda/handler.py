@@ -1,10 +1,13 @@
+"""
+Lambda function that transfer an event into a service inside an EKS cluster
+"""
 # Build-ins
-import os
 import re
-from tempfile import NamedTemporaryFile
-from typing import List, Dict, Any
-from base64 import urlsafe_b64encode, decodebytes
+import os
 from http import HTTPStatus
+from typing import List, Dict, Any
+from tempfile import NamedTemporaryFile
+from base64 import urlsafe_b64encode, decodebytes
 # Third party
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from urllib3.response import HTTPResponse
@@ -22,7 +25,7 @@ DEFAULT_REGION = 'eu-central-1'
 DEFAULT_SERVICE_PORT = 8080
 DEFAULT_SERVICE_REQUEST_TIMEOUT = 30
 DEFAULT_SERVICE_REQUEST_METHOD = "GET"
-DEFAULT_SERVICE_REQUEST_PATH = "/hello"
+DEFAULT_SERVICE_REQUEST_PATH = "hello"
 
 # Environment variables
 CLUSTER_NAME_ENV = "CLUSTER_NAME"
@@ -135,7 +138,7 @@ def _list_namespaced_services(namespace: str) -> List[str]:
         services = [service.metadata.name
                     for service in v1_api.list_namespaced_service(namespace).items]
     except ApiException as err:
-        print("Cannot list Kubernetes services in {namespace} namespace due to {str(e)}")
+        print(f"Cannot list Kubernetes services in {namespace} namespace due to {str(err)}")
         raise err
     print(f"Services in {namespace} namespace: {services}")
     return services
@@ -165,7 +168,7 @@ def _proxy_http_request_kubernetes_service(service: str, port: int, path: str, n
         method=method,
         header_params={"Accept": "*/*"}.update(headers),
         body=body,
-        response_type='str',
+        response_type="str",
         auth_settings=["BearerToken"],
         async_req=False,
         _preload_content=False,
@@ -180,29 +183,30 @@ def handler(event: Dict, context: LambdaContext):
     """
     cluster_name = os.environ.get(CLUSTER_NAME_ENV)
     cluster_region = os.environ.get(CLUSTER_REGION_ENV, DEFAULT_REGION)
+    service = os.environ.get(SERVICE_NAME_ENV)
+    port = int(os.environ.get(SERVICE_PORT_ENV, DEFAULT_SERVICE_PORT))
+    namespace = os.environ.get(SERVICE_NAMESPACE_ENV)
+    request_method = os.environ.get(SERVICE_REQUEST_METHOD_ENV, DEFAULT_SERVICE_REQUEST_METHOD)
+    request_path = os.environ.get(SERVICE_REQUEST_PATH_ENV, DEFAULT_SERVICE_REQUEST_PATH)
+    request_timeout = int(os.environ.get(SERVICE_REQUEST_TIMEOUT_ENV, DEFAULT_SERVICE_REQUEST_TIMEOUT))
     print(f"Cluster name {cluster_name} in region {cluster_region}")
+
     cluster_info = _get_cluster_info(cluster_name, cluster_region)
     cluster_endpoint = _get_cluster_endpoint(cluster_info)
     cluster_ca_cert = _get_cluster_certificate(cluster_info)
     sts_token = _get_bearer_token(cluster_name, cluster_region)
-    service = os.environ.get(SERVICE_NAME_ENV)
-    port = int(os.environ.get(SERVICE_PORT_ENV, DEFAULT_SERVICE_PORT))
-    ns = os.environ.get(SERVICE_NAMESPACE_ENV)
-    request_method = os.environ.get(SERVICE_REQUEST_METHOD_ENV, DEFAULT_SERVICE_REQUEST_METHOD)
-    request_path = os.environ.get(SERVICE_REQUEST_PATH_ENV, DEFAULT_SERVICE_REQUEST_PATH)
-    request_timeout = int(os.environ.get(SERVICE_REQUEST_TIMEOUT_ENV, DEFAULT_SERVICE_REQUEST_TIMEOUT))
-    with NamedTemporaryFile(suffix=".pem") as ca:
-        ca.write(cluster_ca_cert)
-        ca.seek(0)
-        _authenticate_to_eks_cluster(cluster_endpoint=cluster_endpoint, ca_cert_path=ca.name, sts_token=sts_token)
-        available_services = _list_namespaced_services(ns)
+    with NamedTemporaryFile(suffix=".pem") as ca_file:
+        ca_file.write(cluster_ca_cert)
+        ca_file.seek(0)
+        _authenticate_to_eks_cluster(cluster_endpoint=cluster_endpoint, ca_cert_path=ca_file.name, sts_token=sts_token)
+        available_services = _list_namespaced_services(namespace)
         if service not in available_services:
-            raise ValueError(f"There is no such Kubernetes service {service} in namespace {ns}")
+            raise ValueError(f"There is no such Kubernetes service {service} in namespace {namespace}")
         response = _proxy_http_request_kubernetes_service(
             service=service,
             port=port,
             path=request_path,
-            namespace=ns,
+            namespace=namespace,
             method=request_method,
             headers={},
             body=event,
