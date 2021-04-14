@@ -28,7 +28,7 @@ DEFAULT_SERVICE_REQUEST_PATH = "/hello"
 CLUSTER_NAME_ENV = "CLUSTER_NAME"
 CLUSTER_REGION_ENV = "CLUSTER_REGION"
 SERVICE_NAMESPACE_ENV = "SERVICE_NAMESPACE"
-SERVICE_SERVICE_ENV = "SERVICE_SERVICE"
+SERVICE_NAME_ENV = "SERVICE_NAME"
 SERVICE_PORT_ENV = "SERVICE_PORT"
 SERVICE_REQUEST_TIMEOUT_ENV = "SERVICE_REQUEST_TIMEOUT"
 SERVICE_REQUEST_METHOD_ENV = "SERVICE_REQUEST_METHOD"
@@ -185,7 +185,7 @@ def handler(event: Dict, context: LambdaContext):
     cluster_endpoint = _get_cluster_endpoint(cluster_info)
     cluster_ca_cert = _get_cluster_certificate(cluster_info)
     sts_token = _get_bearer_token(cluster_name, cluster_region)
-    service = os.environ.get(SERVICE_SERVICE_ENV)
+    service = os.environ.get(SERVICE_NAME_ENV)
     port = int(os.environ.get(SERVICE_PORT_ENV, DEFAULT_SERVICE_PORT))
     ns = os.environ.get(SERVICE_NAMESPACE_ENV)
     request_method = os.environ.get(SERVICE_REQUEST_METHOD_ENV, DEFAULT_SERVICE_REQUEST_METHOD)
